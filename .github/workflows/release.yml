@@ -63,7 +63,7 @@ jobs:
               -H "Accept: application/vnd.github+json" \
               -H "X-GitHub-Api-Version: 2022-11-28" \
               ${{ format('{0}/packages/container/{1}/versions', env.GITHUB_API_PACKAGE_OWNER, env.PACKAGE_NAME_ESCAPED) }} \
-            | jq -r '.[] | select(.metadata.container.tags[] == "v2.0.0") | .name' \
+            | jq -r '.[] | select(.metadata.container.tags[] == "${ github.ref_name }") | .name' \
           `
           PUBLISHED_IMAGE_DIGEST=ghcr.io/${{ env.PREDICTOR_IMAGE_NAME }}@${DIGEST}
 
