@@ -9,7 +9,6 @@ public struct Args
     public string Org { get; set; }
     public List<string> Repos { get; set; }
     public float Threshold { get; set; }
-    public Predicate<string> LabelPredicate { get; set; }
     public string[]? ExcludedAuthors { get; set; }
     public string? IssuesModelPath { get; set; }
     public int? IssuesLimit { get; set; }
@@ -30,7 +29,6 @@ public struct Args
 
             Required arguments:
               --repo                  The GitHub repositories in format org/repo (comma separated for multiple).
-              --label-prefix          Prefix for label predictions. Must end with a character other than a letter or number.
 
             Required for testing the issues model:
               --issues-model          Path to existing issue prediction model file (ZIP file).
@@ -86,14 +84,6 @@ public struct Args
                     }
                     argsData.Org = org;
                     argsData.Repos = repos;
-                    break;
-
-                case "--label-prefix":
-                    if (!argUtils.TryGetLabelPrefix("--label-prefix", out Func<string, bool>? labelPredicate))
-                    {
-                        return null;
-                    }
-                    argsData.LabelPredicate = new(labelPredicate);
                     break;
 
                 case "--excluded-authors":
@@ -178,7 +168,7 @@ public struct Args
             }
         }
 
-        if (argsData.Org is null || argsData.Repos.Count == 0 || argsData.LabelPredicate is null ||
+        if (argsData.Org is null || argsData.Repos.Count == 0 ||
             (argsData.IssuesModelPath is null && argsData.PullsModelPath is null))
         {
             ShowUsage(null, action);

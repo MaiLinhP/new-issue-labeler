@@ -27,11 +27,19 @@ public class Issue
     public required Page<Label> Labels { get; init; }
 
     public string[] LabelNames => this.Labels.Nodes.Select(label => label.Name).ToArray();
+    public string[] CategoryLabelNames => [.. this.Labels.Nodes.Where(IsCategoryLabel).Select(label => label.Name)];    
+    public string[] ServiceLabelNames => [.. this.Labels.Nodes.Where(IsServiceLabel).Select(label => label.Name)];
+    private static bool IsServiceLabel(Label label) =>
+        string.Equals(label.Color, "e99695", StringComparison.InvariantCultureIgnoreCase);
+
+    private static bool IsCategoryLabel(Label label) =>
+        string.Equals(label.Color, "ffeb77", StringComparison.InvariantCultureIgnoreCase);
 }
 
 public class Label
 {
     public required string Name { get; init; }
+    public required string Color { get; init; }
 }
 
 public class PullRequest : Issue

@@ -93,9 +93,9 @@ async Task<(Type, TestStats)> TestIssues()
 
     async IAsyncEnumerable<Issue> DownloadIssues(string githubToken, string repo)
     {
-        await foreach (var result in GitHubApi.DownloadIssues(githubToken, argsData.Org, repo, argsData.LabelPredicate, argsData.IssuesLimit, argsData.PageSize, argsData.PageLimit, argsData.Retries, argsData.ExcludedAuthors, action, argsData.Verbose))
+        await foreach (var result in GitHubApi.DownloadIssues(githubToken, argsData.Org, repo, argsData.IssuesLimit, argsData.PageSize, argsData.PageLimit, argsData.Retries, argsData.ExcludedAuthors, action, argsData.Verbose))
         {
-            yield return new(repo, result.Issue, argsData.LabelPredicate);
+            yield return new(repo, result.Issue);
         }
     }
 
@@ -123,9 +123,9 @@ async Task<(Type, TestStats)> TestPullRequests()
 
     async IAsyncEnumerable<PullRequest> DownloadPullRequests(string githubToken, string repo)
     {
-        await foreach (var result in GitHubApi.DownloadPullRequests(githubToken, argsData.Org, repo, argsData.LabelPredicate, argsData.PullsLimit, argsData.PageSize, argsData.PageLimit, argsData.Retries, argsData.ExcludedAuthors, action, argsData.Verbose))
+        await foreach (var result in GitHubApi.DownloadPullRequests(githubToken, argsData.Org, repo, argsData.PullsLimit, argsData.PageSize, argsData.PageLimit, argsData.Retries, argsData.ExcludedAuthors, action, argsData.Verbose))
         {
-            yield return new(repo, result.PullRequest, argsData.LabelPredicate);
+            yield return new(repo, result.PullRequest);
         }
     }
 

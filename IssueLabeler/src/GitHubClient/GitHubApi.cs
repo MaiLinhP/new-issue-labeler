@@ -5,6 +5,7 @@ using Actions.Core.Services;
 using GraphQL;
 using GraphQL.Client.Http;
 using GraphQL.Client.Serializer.SystemTextJson;
+using Octokit;
 using System.Collections.Concurrent;
 using System.Net.Http.Json;
 
@@ -71,10 +72,9 @@ public class GitHubApi
     /// <param name="action">The GitHub action service.</param>
     /// <param name="verbose">Emit verbose output into the action log.</param>
     /// <returns>The downloaded issues as an async enumerable collection of tuples containing the issue and its predicate-matched label (when only one matcing label is found).</returns>
-    public static async IAsyncEnumerable<(Issue Issue, string Label)> DownloadIssues(
+    public static async IAsyncEnumerable<(Issue Issue, string CategoryLabel, string ServiceLabel)> DownloadIssues(
         string githubToken,
         string org, string repo,
-        Predicate<string> labelPredicate,
         int? issuesLimit,
         int? pageSize,
         int? pageLimit,
@@ -83,9 +83,9 @@ public class GitHubApi
         ICoreService action,
         bool verbose = false)
     {
-        await foreach (var item in DownloadItems<Issue>("issues", githubToken, org, repo, labelPredicate, issuesLimit, pageSize ?? 100, pageLimit ?? 1000, retries, excludedAuthors, action, verbose))
+        await foreach (var item in DownloadItems<Issue>("issues", githubToken, org, repo, issuesLimit, pageSize ?? 100, pageLimit ?? 1000, retries, excludedAuthors, action, verbose))
         {
-            yield return (item.Item, item.Label);
+            yield return (item.Item, item.CategoryLabel, item.ServiceLabel);
         }
     }
 
@@ -104,11 +104,10 @@ public class GitHubApi
     /// <param name="action">The GitHub action service.</param>
     /// <param name="verbose">Emit verbose output into the action log.</param>
     /// <returns>The downloaded pull requests as an async enumerable collection of tuples containing the pull request and its predicate-matched label (when only one matching label is found).</returns>
-    public static async IAsyncEnumerable<(PullRequest PullRequest, string Label)> DownloadPullRequests(
+    public static async IAsyncEnumerable<(PullRequest PullRequest, string CategoryLabel, string ServiceLabel)> DownloadPullRequests(
         string githubToken,
         string org,
         string repo,
-        Predicate<string> labelPredicate,
         int? pullsLimit,
         int? pageSize,
         int? pageLimit,
@@ -117,11 +116,11 @@ public class GitHubApi
         ICoreService action,
         bool verbose = false)
     {
-        var items = DownloadItems<PullRequest>("pullRequests", githubToken, org, repo, labelPredicate, pullsLimit, pageSize ?? 25, pageLimit ?? 4000, retries, excludedAuthors, action, verbose);
+        var items = DownloadItems<PullRequest>("pullRequests", githubToken, org, repo, pullsLimit, pageSize ?? 25, pageLimit ?? 4000, retries, excludedAuthors, action, verbose);
 
         await foreach (var item in items)
         {
-            yield return (item.Item, item.Label);
+            yield return (item.Item, item.CategoryLabel, item.ServiceLabel);
         }
     }
 
@@ -143,12 +142,11 @@ public class GitHubApi
     /// <param name="verbose">Emit verbose output into the action log.</param>
     /// <returns>The downloaded items as an async enumerable collection of tuples containing the item and its predicate-matched label (when only one matching label is found).</returns>
     /// <exception cref="ApplicationException"></exception>
-    private static async IAsyncEnumerable<(T Item, string Label)> DownloadItems<T>(
+    private static async IAsyncEnumerable<(T Item, string CategoryLabel, string ServiceLabel)> DownloadItems<T>(
         string itemQueryName,
         string githubToken,
         string org,
         string repo,
-        Predicate<string> labelPredicate,
         int? itemLimit,
         int pageSize,
         int pageLimit,
@@ -228,6 +226,7 @@ public class GitHubApi
             totalCount ??= page.TotalCount;
             retry = 0;
 
+
             foreach (T item in page.Nodes)
             {
                 if (excludedAuthors is not null && item.Author?.Login is not null && excludedAuthors.Contains(item.Author.Login, StringComparer.InvariantCultureIgnoreCase))
@@ -244,18 +243,24 @@ public class GitHubApi
                     continue;
                 }
 
-                // Only items with exactly one applicable label are used for the model.
-                string[] labels = Array.FindAll(item.LabelNames, labelPredicate);
-                if (labels.Length != 1)
+                if (!item.LabelNames.Contains("issue-addressed") || !item.LabelNames.Contains("customer-reported"))
                 {
-                    if (verbose) action.WriteInfo($"{typeName} {org}/{repo}#{item.Number} - Excluded from output. {labels.Length} applicable labels found.");
+                    if (verbose) action.WriteInfo($"{typeName} {org}/{repo}#{item.Number} - Excluded from output. Labels do not contain issue-addressed and customer-reported.");
+                    continue;
+                }
+                string[] categoryLabels = item.CategoryLabelNames;
+                string[] serviceLabels = item.ServiceLabelNames;
+
+                if (categoryLabels.Length != 1 || serviceLabels.Length != 1)
+                {
+                    if (verbose) action.WriteInfo($"{typeName} {org}/{repo}#{item.Number} - Excluded from output. {categoryLabels.Length} applicable Category labels found, and {serviceLabels.Length} applicable Service labels found.");
                     continue;
                 }
 
-                // Exactly one applicable label was found on the item. Include it in the model.
-                if (verbose) action.WriteInfo($"{typeName} {org}/{repo}#{item.Number} - Included in output. Applicable label: '{labels[0]}'.");
+                // Exactly one applicable category and service label were found on the item. Include it in the model.
+                if (verbose) action.WriteInfo($"{typeName} {org}/{repo}#{item.Number} - Included in output. Applicable labels: '{categoryLabels[0]}', '{serviceLabels[0]}'.");
 
-                yield return (item, labels[0]);
+                yield return (item, categoryLabels[0], serviceLabels[0]);
 
                 includedCount++;
 
@@ -398,7 +403,10 @@ public class GitHubApi
                             author { login }
                             body: bodyText
                             labels (first: 25) {
-                                nodes { name },
+                                nodes { 
+                                name
+                                color
+                                }
                                 pageInfo { hasNextPage }
                             }
                             {{files}}

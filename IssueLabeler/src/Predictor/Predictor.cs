@@ -46,7 +46,6 @@ if (argsData.IssuesModelPath is not null && argsData.Issues is not null)
             issuePredictor,
             issueNumber,
             new Issue(result),
-            argsData.LabelPredicate,
             argsData.DefaultLabel,
             ModelType.Issue,
             argsData.Retries,
@@ -85,7 +84,6 @@ if (argsData.PullsModelPath is not null && argsData.Pulls is not null)
             pullPredictor,
             pullNumber,
             new PullRequest(result),
-            argsData.LabelPredicate,
             argsData.DefaultLabel,
             ModelType.PullRequest,
             argsData.Retries,
@@ -106,7 +104,7 @@ foreach (var prediction in predictionResults.OrderBy(p => p.Number))
 await action.Summary.WritePersistentAsync();
 return success ? 0 : 1;
 
-async Task<(ulong Number, string ResultMessage, bool Success)> ProcessPrediction<T>(PredictionEngine<T, LabelPrediction> predictor, ulong number, T issueOrPull, Func<string, bool> labelPredicate, string? defaultLabel, ModelType type, int[] retries, bool test) where T : Issue
+async Task<(ulong Number, string ResultMessage, bool Success)> ProcessPrediction<T>(PredictionEngine<T, LabelPrediction> predictor, ulong number, T issueOrPull, string? defaultLabel, ModelType type, int[] retries, bool test) where T : Issue
 {
     List<Action<Summary>> predictionResults = [];
     string typeName = type == ModelType.PullRequest ? "Pull Request" : "Issue";
@@ -136,38 +134,18 @@ async Task<(ulong Number, string ResultMessage, bool Success)> ProcessPrediction
         return Success();
     }
 
-    var applicableLabel = issueOrPull.Labels?.FirstOrDefault(labelPredicate);
+    // Check if issue already has any labels (might skip prediction if no default label management needed)
+    bool hasExistingLabels = issueOrPull.Labels?.Any() ?? false;
 
     bool hasDefaultLabel =
         (defaultLabel is not null) &&
         (issueOrPull.Labels?.Any(l => l.Equals(defaultLabel, StringComparison.OrdinalIgnoreCase)) ?? false);
 
-    if (applicableLabel is not null)
+    // Skip prediction if there are existing labels and no default label to manage
+    if (hasExistingLabels && defaultLabel is null)
     {
-        predictionResults.Add(summary => summary.AddRawMarkdown($"    - No prediction needed. Applicable label `{applicableLabel}` already exists.", true));
-
-        if (hasDefaultLabel && defaultLabel is not null)
-        {
-            if (!test)
-            {
-                error = await GitHubApi.RemoveLabel(argsData.GitHubToken, argsData.Org, argsData.Repo, typeName, number, defaultLabel, argsData.Retries, action);
-            }
-
-            if (error is null)
-            {
-                predictionResults.Add(summary => summary.AddRawMarkdown($"    - Removed default label `{defaultLabel}`.", true));
-                resultMessageParts.Add($"Default label '{defaultLabel}' removed.");
-                return Success();
-            }
-            else
-            {
-                predictionResults.Add(summary => summary.AddRawMarkdown($"    - **Error removing default label `{defaultLabel}`**: {error}", true));
-                resultMessageParts.Add($"Error occurred removing default label '{defaultLabel}'");
-                return Failure();
-            }
-        }
-
-        resultMessageParts.Add($"No prediction needed. Applicable label '{applicableLabel}' already exists.");
+        predictionResults.Add(summary => summary.AddRawMarkdown($"    - Skipping prediction. Issue already has labels and no default label specified.", true));
+        resultMessageParts.Add("Issue already has labels.");
         return Success();
     }
 
@@ -189,8 +167,6 @@ async Task<(ulong Number, string ResultMessage, bool Success)> ProcessPrediction
             Score = score,
             Label = labels.GetItemOrDefault(index).ToString()
         })
-        // Ensure predicted labels match the expected predicate
-        .Where(prediction => labelPredicate(prediction.Label))
         // Capture the top 3 for including in the output
         .OrderByDescending(p => p.Score)
         .Take(3);

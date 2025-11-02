@@ -38,15 +38,15 @@ async Task DownloadIssues(string outputPath)
     byte perFlushCount = 0;
 
     using StreamWriter writer = new StreamWriter(outputPath);
-    writer.WriteLine(FormatIssueRecord("Label", "Title", "Body"));
+    writer.WriteLine(FormatIssueRecord("CategoryLabel", "ServiceLabel", "Title", "Body"));
 
     foreach (var repo in argsData.Repos)
     {
-        await foreach (var result in GitHubApi.DownloadIssues(argsData.GitHubToken, argsData.Org, repo, argsData.LabelPredicate,
+        await foreach (var result in GitHubApi.DownloadIssues(argsData.GitHubToken, argsData.Org, repo,
                                                               argsData.IssuesLimit, argsData.PageSize, argsData.PageLimit,
                                                               argsData.Retries, argsData.ExcludedAuthors, action, argsData.Verbose))
         {
-            writer.WriteLine(FormatIssueRecord(result.Label, result.Issue.Title, result.Issue.Body));
+            writer.WriteLine(FormatIssueRecord(result.CategoryLabel, result.ServiceLabel, result.Issue.Title, result.Issue.Body));
 
             if (++perFlushCount == 100)
             {
@@ -66,15 +66,15 @@ async Task DownloadPullRequests(string outputPath)
     byte perFlushCount = 0;
 
     using StreamWriter writer = new StreamWriter(outputPath);
-    writer.WriteLine(FormatPullRequestRecord("Label", "Title", "Body", ["FileNames"], ["FolderNames"]));
+    writer.WriteLine(FormatPullRequestRecord("CategoryLabel", "ServiceLabel", "Title", "Body", ["FileNames"], ["FolderNames"]));
 
     foreach (var repo in argsData.Repos)
     {
-        await foreach (var result in GitHubApi.DownloadPullRequests(argsData.GitHubToken, argsData.Org, repo, argsData.LabelPredicate,
+        await foreach (var result in GitHubApi.DownloadPullRequests(argsData.GitHubToken, argsData.Org, repo,
                                                                     argsData.PullsLimit, argsData.PageSize, argsData.PageLimit,
                                                                     argsData.Retries, argsData.ExcludedAuthors, action, argsData.Verbose))
         {
-            writer.WriteLine(FormatPullRequestRecord(result.Label, result.PullRequest.Title, result.PullRequest.Body, result.PullRequest.FileNames, result.PullRequest.FolderNames));
+            writer.WriteLine(FormatPullRequestRecord(result.CategoryLabel, result.ServiceLabel, result.PullRequest.Title, result.PullRequest.Body, result.PullRequest.FileNames, result.PullRequest.FolderNames));
 
             if (++perFlushCount == 100)
             {

@@ -5,12 +5,16 @@ using Microsoft.ML.Data;
 
 public class Issue
 {
-    public string? Label { get; set; }
+    public string? CategoryLabel { get; set; }
+    public string? ServiceLabel { get; set; }
     public string? Title { get; set; }
     public string? Body { get; set; }
 
     [NoColumn]
     public string[]? Labels { get; set; }
+    public string[]? CategoryLabels { get; set; }
+    public string[]? ServiceLabels { get; set; }
+
 
     [NoColumn]
     public bool HasMoreLabels { get; set; }
@@ -21,7 +25,8 @@ public class Issue
     {
         Title = issue.Title;
         Body = issue.Body;
-        Labels = issue.LabelNames;
+        CategoryLabels = issue.CategoryLabelNames;
+        ServiceLabels = issue.ServiceLabelNames;
         HasMoreLabels = issue.Labels.HasNextPage;
     }
 }
@@ -42,6 +47,7 @@ public class PullRequest : Issue
 
 public class LabelPrediction
 {
-    public string? PredictedLabel { get; set; }
+    public string? PredictedCategoryLabel { get; set; }
+    public string? PredictedServiceLabel { get; set; }
     public float[]? Score { get; set; }
 }

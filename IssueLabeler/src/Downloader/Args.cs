@@ -16,7 +16,6 @@ public struct Args
     public int? PageLimit { get; set; }
     public int[] Retries { get; set; }
     public string[]? ExcludedAuthors { get; set; }
-    public Predicate<string> LabelPredicate { get; set; }
     public bool Verbose { get; set; }
 
     static void ShowUsage(string? message, ICoreService action)
@@ -29,7 +28,6 @@ public struct Args
 
             Required arguments:
               --repo                  The GitHub repositories in format org/repo (comma separated for multiple).
-              --label-prefix          Prefix for label predictions. Must end with a character other than a letter or number.
 
             Required for downloading issue data:
               --issues-data           Path for issue data file to create (TSV file).
@@ -80,14 +78,6 @@ public struct Args
                     }
                     argsData.Org = org;
                     argsData.Repos = repos;
-                    break;
-
-                case "--label-prefix":
-                    if (!argUtils.TryGetLabelPrefix("--label-prefix", out Func<string, bool>? labelPredicate))
-                    {
-                        return null;
-                    }
-                    argsData.LabelPredicate = new(labelPredicate);
                     break;
 
                 case "--excluded-authors":
@@ -164,7 +154,7 @@ public struct Args
             }
         }
 
-        if (argsData.Org is null || argsData.Repos is null || argsData.LabelPredicate is null ||
+        if (argsData.Org is null || argsData.Repos is null ||
             (argsData.IssuesDataPath is null && argsData.PullsDataPath is null))
         {
             ShowUsage(null, action);

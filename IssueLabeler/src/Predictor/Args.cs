@@ -9,7 +9,6 @@ public struct Args
     public string Org { get; set; }
     public string Repo { get; set; }
     public float Threshold { get; set; }
-    public Func<string, bool> LabelPredicate { get; set; }
     public string[]? ExcludedAuthors { get; set; }
     public string? IssuesModelPath { get; set; }
     public List<ulong>? Issues { get; set; }
@@ -33,8 +32,6 @@ public struct Args
             Required inputs:
               REPO                    GitHub repository in the format {org}/{repo}.
                                       Defaults to: GITHUB_REPOSITORY environment variable.
-              LABEL_PREFIX            Prefix for label predictions.
-                                      Must end with a non-alphanumeric character.
 
             Required inputs for predicting issue labels:
               ISSUES_MODEL            Path to the issue prediction model file (ZIP file).
@@ -66,7 +63,6 @@ public struct Args
     {
         ArgUtils argUtils = new(action, ShowUsage);
         argUtils.TryGetRepo("repo", out var org, out var repo);
-        argUtils.TryGetLabelPrefix("label_prefix", out var labelPredicate);
         argUtils.TryGetPath("issues_model", out var issuesModelPath);
         argUtils.TryGetNumberRanges("issues", out var issues);
         argUtils.TryGetPath("pulls_model", out var pullsModelPath);
@@ -78,7 +74,7 @@ public struct Args
         argUtils.TryGetFlag("test", out var test);
         argUtils.TryGetFlag("verbose", out var verbose);
 
-        if (org is null || repo is null || threshold is null || labelPredicate is null ||
+        if (org is null || repo is null || threshold is null ||
             (issues is null && pulls is null))
         {
             ShowUsage(null, action);
@@ -89,7 +85,6 @@ public struct Args
         {
             Org = org,
             Repo = repo,
-            LabelPredicate = labelPredicate,
             DefaultLabel = defaultLabel,
             IssuesModelPath = issuesModelPath,
             Issues = issues,

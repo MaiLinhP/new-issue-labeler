@@ -48,10 +48,11 @@ public static class DataFileUtils
     /// <param name="title">The title of the issue.</param>
     /// <param name="body">The body of the issue.</param>
     /// <returns>The formatted issue record.</returns>
-    public static string FormatIssueRecord(string label, string title, string body)
+    public static string FormatIssueRecord(string categoryLabel, string serviceLabel, string title, string body)
         => string.Join('\t',
         [
-            SanitizeText(label),
+            SanitizeText(categoryLabel),
+            SanitizeText(serviceLabel),
             SanitizeText(title),
             SanitizeText(body)
         ]);
@@ -65,10 +66,11 @@ public static class DataFileUtils
     /// <param name="fileNames">The array of file names associated with the pull request.</param>
     /// <param name="folderNames">The array of folder names associated with the pull request.</param>
     /// <returns>The formatted pull request record.</returns>
-    public static string FormatPullRequestRecord(string label, string title, string body, string[] fileNames, string[] folderNames)
+    public static string FormatPullRequestRecord(string categoryLabel, string serviceLabel, string title, string body, string[] fileNames, string[] folderNames)
         => string.Join('\t',
         [
-            SanitizeText(label),
+            SanitizeText(categoryLabel),
+            SanitizeText(serviceLabel),
             SanitizeText(title),
             SanitizeText(body),
             SanitizeTextArray(fileNames),

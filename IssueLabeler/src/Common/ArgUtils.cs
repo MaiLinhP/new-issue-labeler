@@ -180,45 +180,6 @@ public class ArgUtils
     }
 
     /// <summary>
-    /// Try to get the label prefix from the input.
-    /// </summary>
-    /// <remarks>
-    /// The label prefix must end with a non-alphanumeric character.
-    /// </remarks>
-    /// <param name="inputName">The name of the input to retrieve.</param>
-    /// <param name="labelPredicate">The label predicate function that checks if a label starts with the specified prefix.</param>
-    /// <returns><c>true</c> if the label prefix was retrieved successfully, <c>false</c> otherwise.</returns>
-    public bool TryGetLabelPrefix(string inputName, [NotNullWhen(true)] out Func<string, bool>? labelPredicate)
-    {
-        string? labelPrefix = GetInputString(inputName);
-
-        if (labelPrefix is null)
-        {
-            labelPredicate = null;
-            return false;
-        }
-
-        // Require that the label prefix end in something other than a letter or number
-        // This promotes the pattern of prefixes that are clear, rather than a prefix that
-        // could be matched as the beginning of another word in the label
-        if (Regex.IsMatch(labelPrefix.AsSpan(^1),"[a-zA-Z0-9]"))
-        {
-            showUsage($"""
-                Input '{inputName}' must end in a non-alphanumeric character.
-
-                The recommended label prefix terminating character is '-'.
-                The recommended label prefix for applying area labels is 'area-'.
-                """);
-
-            labelPredicate = null;
-            return false;
-        }
-
-        labelPredicate = (label) => label.StartsWith(labelPrefix, StringComparison.OrdinalIgnoreCase);
-        return true;
-    }
-
-    /// <summary>
     /// Try to get a file path from the input.
     /// </summary>
     /// <remarks>
