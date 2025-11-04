@@ -21,7 +21,6 @@ env:
   # Do not allow failure for jobs triggered automatically (as this causes red noise on the workflows list)
   ALLOW_FAILURE: ${{ github.event_name == 'workflow_dispatch' }}
 
-  LABEL_PREFIX: "area-"
   THRESHOLD: 0.40
   DEFAULT_LABEL: "needs-area-label"
 
@@ -33,21 +32,28 @@ jobs:
     permissions:
       issues: write
     steps:
-      - name: "Restore issues model from cache"
-        id: restore-model
+      - name: "Restore category issues model from cache"
+        id: restore-category-model
         uses: dotnet/issue-labeler/restore@main
         with:
-          type: issues
+          type: category-issues
+          fail-on-cache-miss: ${{ env.ALLOW_FAILURE }}
+          quiet: true
+
+      - name: "Restore service issues model from cache"
+        id: restore-service-model
+        uses: dotnet/issue-labeler/restore@main
+        with:
+          type: service-issues
           fail-on-cache-miss: ${{ env.ALLOW_FAILURE }}
           quiet: true
 
       - name: "Predict issue labels"
         id: prediction
-        if: ${{ steps.restore-model.outputs.cache-hit == 'true' }}
+        if: ${{ steps.restore-category-model.outputs.cache-hit == 'true' || steps.restore-service-model.outputs.cache-hit == 'true' }}
         uses: dotnet/issue-labeler/predict@main
         with:
           issues: ${{ inputs.issues || github.event.issue.number }}
-          label_prefix: ${{ env.LABEL_PREFIX }}
           threshold: ${{ env.THRESHOLD }}
           default_label: ${{ env.DEFAULT_LABEL }}
         env:

@@ -44,7 +44,6 @@ on:
 env:
   CACHE_KEY: ${{ inputs.cache_key_suffix }}
   REPOSITORY: ${{ inputs.repository || github.repository }}
-  LABEL_PREFIX: "area-"
   THRESHOLD: "0.40"
   LIMIT: ${{ inputs.limit }}
   PAGE_SIZE: ${{ inputs.page_size }}
@@ -63,7 +62,6 @@ jobs:
           type: "issues"
           cache_key: ${{ env.CACHE_KEY }}
           repository: ${{ env.REPOSITORY }}
-          label_prefix: ${{ env.LABEL_PREFIX }}
           limit: ${{ env.LIMIT }}
           page_size: ${{ env.PAGE_SIZE }}
           page_limit: ${{ env.PAGE_LIMIT }}
@@ -82,7 +80,6 @@ jobs:
           type: "pulls"
           cache_key: ${{ env.CACHE_KEY }}
           repository: ${{ env.REPOSITORY }}
-          label_prefix: ${{ env.LABEL_PREFIX }}
           limit: ${{ env.LIMIT }}
           page_size: ${{ env.PAGE_SIZE }}
           page_limit: ${{ env.PAGE_LIMIT }}
@@ -128,7 +125,6 @@ jobs:
           type: "issues"
           cache_key: ${{ env.CACHE_KEY }}
           repository: ${{ env.REPOSITORY }}
-          label_prefix: ${{ env.LABEL_PREFIX }}
           threshold: ${{ env.THRESHOLD }}
           limit: ${{ env.LIMIT }}
           page_size: ${{ env.PAGE_SIZE }}
@@ -149,7 +145,6 @@ jobs:
           type: "pulls"
           cache_key: ${{ env.CACHE_KEY }}
           repository: ${{ env.REPOSITORY }}
-          label_prefix: ${{ env.LABEL_PREFIX }}
           threshold: ${{ env.THRESHOLD }}
           limit: ${{ env.LIMIT }}
           page_size: ${{ env.PAGE_SIZE }}

@@ -18,13 +18,14 @@ if (Args.Parse(args, action) is not Args argsData) return 1;
 
 List<Task<(ulong Number, string ResultMessage, bool Success)>> tasks = new();
 
-if (argsData.IssuesModelPath is not null && argsData.Issues is not null)
+// Process Category Issues Model
+if (argsData.CategoryIssuesModelPath is not null && argsData.Issues is not null)
 {
-    await action.WriteStatusAsync($"Loading prediction engine for issues model...");
-    var issueContext = new MLContext();
-    var issueModel = issueContext.Model.Load(argsData.IssuesModelPath, out _);
-    var issuePredictor = issueContext.Model.CreatePredictionEngine<Issue, LabelPrediction>(issueModel);
-    await action.WriteStatusAsync($"Issues prediction engine ready.");
+    await action.WriteStatusAsync($"Loading prediction engine for category issues model...");
+    var categoryIssueContext = new MLContext();
+    var categoryIssueModel = categoryIssueContext.Model.Load(argsData.CategoryIssuesModelPath, out _);
+    var categoryIssuePredictor = categoryIssueContext.Model.CreatePredictionEngine<Issue, LabelPrediction>(categoryIssueModel);
+    await action.WriteStatusAsync($"Category issues prediction engine ready.");
 
     foreach (ulong issueNumber in argsData.Issues)
     {
@@ -43,26 +44,68 @@ if (argsData.IssuesModelPath is not null && argsData.Issues is not null)
         }
 
         tasks.Add(Task.Run(() => ProcessPrediction(
-            issuePredictor,
+            categoryIssuePredictor,
             issueNumber,
             new Issue(result),
             argsData.DefaultLabel,
             ModelType.Issue,
             argsData.Retries,
-            argsData.Test
+            argsData.Test,
+            "Category"
         )));
 
-        action.WriteInfo($"[Issue {argsData.Org}/{argsData.Repo}#{issueNumber}] Queued for prediction.");
+        action.WriteInfo($"[Issue {argsData.Org}/{argsData.Repo}#{issueNumber}] Queued for category prediction.");
     }
 }
 
-if (argsData.PullsModelPath is not null && argsData.Pulls is not null)
+// Process Service Issues Model
+if (argsData.ServiceIssuesModelPath is not null && argsData.Issues is not null)
 {
-    await action.WriteStatusAsync($"Loading prediction engine for pulls model...");
-    var pullContext = new MLContext();
-    var pullModel = pullContext.Model.Load(argsData.PullsModelPath, out _);
-    var pullPredictor = pullContext.Model.CreatePredictionEngine<PullRequest, LabelPrediction>(pullModel);
-    await action.WriteStatusAsync($"Pulls prediction engine ready.");
+    await action.WriteStatusAsync($"Loading prediction engine for service issues model...");
+    var serviceIssueContext = new MLContext();
+    var serviceIssueModel = serviceIssueContext.Model.Load(argsData.ServiceIssuesModelPath, out _);
+    var serviceIssuePredictor = serviceIssueContext.Model.CreatePredictionEngine<Issue, LabelPrediction>(serviceIssueModel);
+    await action.WriteStatusAsync($"Service issues prediction engine ready.");
+
+    foreach (ulong issueNumber in argsData.Issues)
+    {
+        var result = await GitHubApi.GetIssue(argsData.GitHubToken, argsData.Org, argsData.Repo, issueNumber, argsData.Retries, action, argsData.Verbose);
+
+        if (result is null)
+        {
+            action.WriteNotice($"[Issue {argsData.Org}/{argsData.Repo}#{issueNumber}] could not be found or downloaded. Skipped.");
+            continue;
+        }
+
+        if (argsData.ExcludedAuthors is not null && result.Author?.Login is not null && argsData.ExcludedAuthors.Contains(result.Author.Login, StringComparer.InvariantCultureIgnoreCase))
+        {
+            action.WriteNotice($"[Issue {argsData.Org}/{argsData.Repo}#{issueNumber}] Author '{result.Author.Login}' is in excluded list. Skipped.");
+            continue;
+        }
+
+        tasks.Add(Task.Run(() => ProcessPrediction(
+            serviceIssuePredictor,
+            issueNumber,
+            new Issue(result),
+            argsData.DefaultLabel,
+            ModelType.Issue,
+            argsData.Retries,
+            argsData.Test,
+            "Service"
+        )));
+
+        action.WriteInfo($"[Issue {argsData.Org}/{argsData.Repo}#{issueNumber}] Queued for service prediction.");
+    }
+}
+
+// Process Category Pulls Model
+if (argsData.CategoryPullsModelPath is not null && argsData.Pulls is not null)
+{
+    await action.WriteStatusAsync($"Loading prediction engine for category pulls model...");
+    var categoryPullContext = new MLContext();
+    var categoryPullModel = categoryPullContext.Model.Load(argsData.CategoryPullsModelPath, out _);
+    var categoryPullPredictor = categoryPullContext.Model.CreatePredictionEngine<PullRequest, LabelPrediction>(categoryPullModel);
+    await action.WriteStatusAsync($"Category pulls prediction engine ready.");
 
     foreach (ulong pullNumber in argsData.Pulls)
     {
@@ -81,16 +124,57 @@ if (argsData.PullsModelPath is not null && argsData.Pulls is not null)
         }
 
         tasks.Add(Task.Run(() => ProcessPrediction(
-            pullPredictor,
+            categoryPullPredictor,
             pullNumber,
             new PullRequest(result),
             argsData.DefaultLabel,
             ModelType.PullRequest,
             argsData.Retries,
-            argsData.Test
+            argsData.Test,
+            "Category"
         )));
 
-        action.WriteInfo($"[Pull Request {argsData.Org}/{argsData.Repo}#{pullNumber}] Queued for prediction.");
+        action.WriteInfo($"[Pull Request {argsData.Org}/{argsData.Repo}#{pullNumber}] Queued for category prediction.");
+    }
+}
+
+// Process Service Pulls Model
+if (argsData.ServicePullsModelPath is not null && argsData.Pulls is not null)
+{
+    await action.WriteStatusAsync($"Loading prediction engine for service pulls model...");
+    var servicePullContext = new MLContext();
+    var servicePullModel = servicePullContext.Model.Load(argsData.ServicePullsModelPath, out _);
+    var servicePullPredictor = servicePullContext.Model.CreatePredictionEngine<PullRequest, LabelPrediction>(servicePullModel);
+    await action.WriteStatusAsync($"Service pulls prediction engine ready.");
+
+    foreach (ulong pullNumber in argsData.Pulls)
+    {
+        var result = await GitHubApi.GetPullRequest(argsData.GitHubToken, argsData.Org, argsData.Repo, pullNumber, argsData.Retries, action, argsData.Verbose);
+
+        if (result is null)
+        {
+            action.WriteNotice($"[Pull Request {argsData.Org}/{argsData.Repo}#{pullNumber}] could not be found or downloaded. Skipped.");
+            continue;
+        }
+
+        if (argsData.ExcludedAuthors is not null && result.Author?.Login is not null && argsData.ExcludedAuthors.Contains(result.Author.Login))
+        {
+            action.WriteNotice($"[Pull Request {argsData.Org}/{argsData.Repo}#{pullNumber}] Author '{result.Author.Login}' is in excluded list. Skipped.");
+            continue;
+        }
+
+        tasks.Add(Task.Run(() => ProcessPrediction(
+            servicePullPredictor,
+            pullNumber,
+            new PullRequest(result),
+            argsData.DefaultLabel,
+            ModelType.PullRequest,
+            argsData.Retries,
+            argsData.Test,
+            "Service"
+        )));
+
+        action.WriteInfo($"[Pull Request {argsData.Org}/{argsData.Repo}#{pullNumber}] Queued for service prediction.");
     }
 }
 
@@ -104,10 +188,10 @@ foreach (var prediction in predictionResults.OrderBy(p => p.Number))
 await action.Summary.WritePersistentAsync();
 return success ? 0 : 1;
 
-async Task<(ulong Number, string ResultMessage, bool Success)> ProcessPrediction<T>(PredictionEngine<T, LabelPrediction> predictor, ulong number, T issueOrPull, string? defaultLabel, ModelType type, int[] retries, bool test) where T : Issue
+async Task<(ulong Number, string ResultMessage, bool Success)> ProcessPrediction<T>(PredictionEngine<T, LabelPrediction> predictor, ulong number, T issueOrPull, string? defaultLabel, ModelType type, int[] retries, bool test, string modelName = "") where T : Issue
 {
     List<Action<Summary>> predictionResults = [];
-    string typeName = type == ModelType.PullRequest ? "Pull Request" : "Issue";
+    string typeName = type == ModelType.PullRequest ? $"Pull Request ({modelName})" : $"Issue ({modelName})";
     List<string> resultMessageParts = [];
     string? error = null;
 

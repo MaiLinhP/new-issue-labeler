@@ -4,16 +4,11 @@ description: "Predict labels for Issues and Pull Requests using models already r
 inputs:
   issues:
     description: "Issue Numbers (comma-separated list of ranges)."
-    required: true
+    required: false
 
   pulls:
     description: "Pull Request Numbers (comma-separated list of ranges)."
-    required: true
-
-  label_prefix:
-    description: "The label prefix used for prediction. Must end with a non-alphanumeric character. Defaults to 'area-'."
     required: false
-    default: "area-"
 
   threshold:
     description: "The minimum confidence score for a label prediction, as a decimal between 0.00 and 1.00. Defaults to 0.40."
@@ -49,5 +44,7 @@ runs:
   # to ensure an immutable version is always used.
   image: docker://ghcr.io/dotnet/issue-labeler/predictor@sha256:<sha256-digest-to-be-added-here-after-first-release>
   env:
-    INPUT_ISSUES_MODEL: "labeler-cache/issues-model.zip"
-    INPUT_PULLS_MODEL: "labeler-cache/pulls-model.zip"
+    INPUT_CATEGORY_ISSUES_MODEL: "labeler-cache/category-issues-model.zip"
+    INPUT_SERVICE_ISSUES_MODEL: "labeler-cache/service-issues-model.zip"
+    INPUT_CATEGORY_PULLS_MODEL: "labeler-cache/category-pulls-model.zip"
+    INPUT_SERVICE_PULLS_MODEL: "labeler-cache/service-pulls-model.zip"

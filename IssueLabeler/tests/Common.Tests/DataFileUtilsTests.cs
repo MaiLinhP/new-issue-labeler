@@ -50,12 +50,13 @@ namespace Common.Tests
         [Fact]
         public void FormatIssueRecord_ShouldReturnTabSeparatedString()
         {
-            string label = "area-testing";
+            string categoryLabel = "category-testing";
+            string serviceLabel = "service-testing";
             string title = "Issue title";
             string body = "Issue body\r\nwith new line";
-            string[] expected = ["area-testing","Issue title","Issue body  with new line"];
+            string[] expected = ["category-testing","service-testing","Issue title","Issue body  with new line"];
 
-            string[] result = DataFileUtils.FormatIssueRecord(label, title, body).Split('\t');
+            string[] result = DataFileUtils.FormatIssueRecord(categoryLabel, serviceLabel, title, body).Split('\t');
 
             Assert.Equal(expected, result);
         }

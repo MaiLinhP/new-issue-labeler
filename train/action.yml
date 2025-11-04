@@ -1,15 +1,15 @@
 name: "Train Model"
-description: "Train the Issues or Pull Requests model for label prediction."
+description: "Train the Issues or Pull Requests models for label prediction."
 
 inputs:
   type:
-    description: "The model to train. Must be either 'issues' or 'pulls'."
+    description: "The model type to train. Must be either 'issues' or 'pulls'."
     required: true
   data_cache_key:
     description: "The cache key suffix to use for the downloaded data. Defaults to 'staged'."
     default: staged
   model_cache_key:
-    description: "The cache key suffix to use for the trained model. Defaults to 'staged'."
+    description: "The cache key suffix to use for the trained models. Defaults to 'staged'."
     default: staged
 
 branding:
@@ -34,27 +34,32 @@ runs:
       run: |
         echo "DATA_PATH=labeler-cache/${{ inputs.type }}-data.tsv" >> $GITHUB_ENV
         echo "DATA_CACHE_KEY=${{ format('issue-labeler/data/{0}/{1}', inputs.type, inputs.data_cache_key) }}" >> $GITHUB_ENV
-        echo "MODEL_PATH=labeler-cache/${{ inputs.type }}-model.zip" >> $GITHUB_ENV
-        echo "MODEL_CACHE_KEY=${{ format('issue-labeler/model/{0}/{1}', inputs.type, inputs.model_cache_key) }}" >> $GITHUB_ENV
+        echo "CATEGORY_MODEL_PATH=labeler-cache/category-${{ inputs.type }}-model.zip" >> $GITHUB_ENV
+        echo "CATEGORY_MODEL_CACHE_KEY=${{ format('issue-labeler/model/category-{0}/{1}', inputs.type, inputs.model_cache_key) }}" >> $GITHUB_ENV
+        echo "SERVICE_MODEL_PATH=labeler-cache/service-${{ inputs.type }}-model.zip" >> $GITHUB_ENV
+        echo "SERVICE_MODEL_CACHE_KEY=${{ format('issue-labeler/model/service-{0}/{1}', inputs.type, inputs.model_cache_key) }}" >> $GITHUB_ENV
 
-    - name: "Check for an existing model"
+    - name: "Check for existing models"
       id: check-cache
       uses: actions/cache/restore@5a3ec84eff668545956fd18022155c47e93e2684 # v4.2.3
       with:
-        path: ${{ env.MODEL_PATH }}
-        key: ${{ env.MODEL_CACHE_KEY }}
+        path: |
+          ${{ env.CATEGORY_MODEL_PATH }}
+          ${{ env.SERVICE_MODEL_PATH }}
+        key: ${{ env.CATEGORY_MODEL_CACHE_KEY }}
+        restore-keys: ${{ env.SERVICE_MODEL_CACHE_KEY }}
         lookup-only: true
 
-    - name: "Abort if there is an existing model with the specified cache key"
+    - name: "Abort if there are existing models with the specified cache key"
       shell: bash
       run: |
         if [[ "${{ steps.check-cache.outputs.cache-hit }}" == "true" ]]; then
-          echo "::error::Cache key '${{ env.MODEL_CACHE_KEY }}' already exists. Cannot proceed with training."
+          echo "::error::Cache keys already exist for this model type. Cannot proceed with training."
           echo "> [!CAUTION]" >> $GITHUB_STEP_SUMMARY
-          echo "Cache key '${{ env.MODEL_CACHE_KEY }}' already exists. Cannot proceed with training." >> $GITHUB_STEP_SUMMARY
+          echo "Cache keys already exist for '${{ inputs.type }}' models. Cannot proceed with training." >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "> [!TIP]" >> $GITHUB_STEP_SUMMARY
-          echo "Use a different \`model_cache_key\` value or delete the existing cache entry from the [Action Caches](/${{ github.repository }}/actions/caches) page and run the workflow again." >> $GITHUB_STEP_SUMMARY
+          echo "Use a different \`model_cache_key\` value or delete the existing cache entries from the [Action Caches](/${{ github.repository }}/actions/caches) page and run the workflow again." >> $GITHUB_STEP_SUMMARY
           exit 1
         fi
 
@@ -84,22 +89,29 @@ runs:
       run: |
         dotnet run -c Release --project IssueLabeler/src/Trainer -- \
           ${{ format('--{0}-data "{1}"', inputs.type, env.DATA_PATH) }} \
-          ${{ format('--{0}-model "{1}"', inputs.type, env.MODEL_PATH) }}
+          ${{ format('--category-{0}-model "{1}"', inputs.type, env.CATEGORY_MODEL_PATH) }} \
+          ${{ format('--service-{0}-model "{1}"', inputs.type, env.SERVICE_MODEL_PATH) }}
 
-    - name: "Save Model to Cache"
+    - name: "Save Category Model to Cache"
       uses: actions/cache/save@5a3ec84eff668545956fd18022155c47e93e2684 # v4.2.3
       with:
-        path: ${{ env.MODEL_PATH }}
-        key: ${{ env.MODEL_CACHE_KEY }}
+        path: ${{ env.CATEGORY_MODEL_PATH }}
+        key: ${{ env.CATEGORY_MODEL_CACHE_KEY }}
+
+    - name: "Save Service Model to Cache"
+      uses: actions/cache/save@5a3ec84eff668545956fd18022155c47e93e2684 # v4.2.3
+      with:
+        path: ${{ env.SERVICE_MODEL_PATH }}
+        key: ${{ env.SERVICE_MODEL_CACHE_KEY }}
 
     - name: "Write Final Summary"
       shell: bash
       run: |
         echo "" >> $GITHUB_STEP_SUMMARY
-        echo "## ${{ inputs.type == 'issues' && 'Issues' || 'Pull Requests' }} Model Available as '${{ inputs.model_cache_key }}'." >> $GITHUB_STEP_SUMMARY
+        echo "## ${{ inputs.type == 'issues' && 'Issues' || 'Pull Requests' }} Models Available as '${{ inputs.model_cache_key }}'." >> $GITHUB_STEP_SUMMARY
 
         if [[ "${{ inputs.model_cache_key }}" == "ACTIVE" ]]; then
-          echo "Label predictions will now use this model." >> $GITHUB_STEP_SUMMARY
+          echo "Label predictions will now use these models." >> $GITHUB_STEP_SUMMARY
         else
-          echo "The '${{ inputs.model_cache_key }}' model is saved to cache and available to test or promote." >> $GITHUB_STEP_SUMMARY
+          echo "The '${{ inputs.model_cache_key }}' models are saved to cache and available to test or promote." >> $GITHUB_STEP_SUMMARY
         fi

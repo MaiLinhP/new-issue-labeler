@@ -10,9 +10,11 @@ public struct Args
     public string Repo { get; set; }
     public float Threshold { get; set; }
     public string[]? ExcludedAuthors { get; set; }
-    public string? IssuesModelPath { get; set; }
+    public string? CategoryIssuesModelPath { get; set; }
+    public string? ServiceIssuesModelPath { get; set; }
     public List<ulong>? Issues { get; set; }
-    public string? PullsModelPath { get; set; }
+    public string? CategoryPullsModelPath { get; set; }
+    public string? ServicePullsModelPath { get; set; }
     public List<ulong>? Pulls { get; set; }
     public string? DefaultLabel { get; set; }
     public int[] Retries { get; set; }
@@ -34,12 +36,14 @@ public struct Args
                                       Defaults to: GITHUB_REPOSITORY environment variable.
 
             Required inputs for predicting issue labels:
-              ISSUES_MODEL            Path to the issue prediction model file (ZIP file).
+              CATEGORY_ISSUES_MODEL   Path to the category issues prediction model file (ZIP file).
+              SERVICE_ISSUES_MODEL    Path to the service issues prediction model file (ZIP file).
               ISSUES                  Comma-separated list of issue number ranges.
                                       Example: 1-3,7,5-9.
 
             Required inputs for predicting pull request labels:
-              PULLS_MODEL             Path to the pull request prediction model file (ZIP file).
+              CATEGORY_PULLS_MODEL    Path to the category pulls prediction model file (ZIP file).
+              SERVICE_PULLS_MODEL     Path to the service pulls prediction model file (ZIP file).
               PULLS                   Comma-separated list of pull request number ranges.
                                       Example: 1-3,7,5-9.
 
@@ -63,9 +67,11 @@ public struct Args
     {
         ArgUtils argUtils = new(action, ShowUsage);
         argUtils.TryGetRepo("repo", out var org, out var repo);
-        argUtils.TryGetPath("issues_model", out var issuesModelPath);
+        argUtils.TryGetPath("category_issues_model", out var categoryIssuesModelPath);
+        argUtils.TryGetPath("service_issues_model", out var serviceIssuesModelPath);
         argUtils.TryGetNumberRanges("issues", out var issues);
-        argUtils.TryGetPath("pulls_model", out var pullsModelPath);
+        argUtils.TryGetPath("category_pulls_model", out var categoryPullsModelPath);
+        argUtils.TryGetPath("service_pulls_model", out var servicePullsModelPath);
         argUtils.TryGetNumberRanges("pulls", out var pulls);
         argUtils.TryGetStringArray("excluded_authors", out var excludedAuthors);
         argUtils.TryGetFloat("threshold", out var threshold);
@@ -75,7 +81,9 @@ public struct Args
         argUtils.TryGetFlag("verbose", out var verbose);
 
         if (org is null || repo is null || threshold is null ||
-            (issues is null && pulls is null))
+            (issues is null && pulls is null) ||
+            (issues is not null && categoryIssuesModelPath is null && serviceIssuesModelPath is null) ||
+            (pulls is not null && categoryPullsModelPath is null && servicePullsModelPath is null))
         {
             ShowUsage(null, action);
             return null;
@@ -86,9 +94,11 @@ public struct Args
             Org = org,
             Repo = repo,
             DefaultLabel = defaultLabel,
-            IssuesModelPath = issuesModelPath,
+            CategoryIssuesModelPath = categoryIssuesModelPath,
+            ServiceIssuesModelPath = serviceIssuesModelPath,
             Issues = issues,
-            PullsModelPath = pullsModelPath,
+            CategoryPullsModelPath = categoryPullsModelPath,
+            ServicePullsModelPath = servicePullsModelPath,
             Pulls = pulls,
             ExcludedAuthors = excludedAuthors,
             Threshold = threshold ?? 0.4f,

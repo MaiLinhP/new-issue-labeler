@@ -1,6 +1,7 @@
 ﻿// Licensed to the .NET Foundation under one or more agreements.
 // The .NET Foundation licenses this file to you under the MIT license.
 
+using System.Reflection.Emit;
 using Actions.Core.Extensions;
 using Actions.Core.Markdown;
 using Actions.Core.Services;
@@ -21,20 +22,26 @@ if (config is not Args argsData) return 1;
 
 List<Task> tasks = new();
 
-if (argsData.IssuesDataPath is not null && argsData.IssuesModelPath is not null)
+if (argsData.IssuesDataPath is not null && 
+    argsData.CategoryIssuesModelPath is not null && 
+    argsData.ServiceIssuesModelPath is not null)
 {
-    tasks.Add(Task.Run(() => CreateModel(argsData.IssuesDataPath, argsData.IssuesModelPath, ModelType.Issue, action)));
+    tasks.Add(Task.Run(() => CreateModel(argsData.IssuesDataPath, argsData.CategoryIssuesModelPath, ModelType.Issue, LabelType.Category, action)));
+    tasks.Add(Task.Run(() => CreateModel(argsData.IssuesDataPath, argsData.ServiceIssuesModelPath, ModelType.Issue, LabelType.Service, action)));
 }
 
-if (argsData.PullsDataPath is not null && argsData.PullsModelPath is not null)
+if (argsData.PullsDataPath is not null && 
+    argsData.CategoryPullsModelPath is not null && 
+    argsData.ServicePullsModelPath is not null)
 {
-    tasks.Add(Task.Run(() => CreateModel(argsData.PullsDataPath, argsData.PullsModelPath, ModelType.PullRequest, action)));
+    tasks.Add(Task.Run(() => CreateModel(argsData.PullsDataPath, argsData.CategoryPullsModelPath, ModelType.PullRequest, LabelType.Category, action)));
+    tasks.Add(Task.Run(() => CreateModel(argsData.PullsDataPath, argsData.ServicePullsModelPath, ModelType.PullRequest, LabelType.Service, action)));
 }
 
 var success = await App.RunTasks(tasks, action);
 return success ? 0 : 1;
 
-static async Task CreateModel(string dataPath, string modelPath, ModelType type, ICoreService action)
+static async Task CreateModel(string dataPath, string modelPath, ModelType type, LabelType labelType, ICoreService action)
 {
     if (!File.Exists(dataPath))
     {
@@ -55,19 +62,19 @@ static async Task CreateModel(string dataPath, string modelPath, ModelType type,
         throw new InvalidOperationException($"The data file '{dataPath}' does not contain enough data for training. A minimum of 10 records is required, but only {recordsCounted} exist.");
     }
 
-    await action.WriteStatusAsync("Loading data into train/test sets...");
+    await action.WriteStatusAsync($"Loading data into train/test sets for {labelType} labels...");
     MLContext mlContext = new();
-
+    TextLoader.Column labelColumn = labelType == LabelType.Category ? new("Label", DataKind.String, 0) : new("Label", DataKind.String, 1);
     TextLoader.Column[] columns = type == ModelType.Issue ? [
-        new("Label", DataKind.String, 0),
-        new("Title", DataKind.String, 1),
-        new("Body", DataKind.String, 2),
+        labelColumn,
+        new("Title", DataKind.String, 2),
+        new("Body", DataKind.String, 3),
     ] : [
-        new("Label", DataKind.String, 0),
-        new("Title", DataKind.String, 1),
-        new("Body", DataKind.String, 2),
-        new("FileNames", DataKind.String, 3),
-        new("FolderNames", DataKind.String, 4)
+        labelColumn,
+        new("Title", DataKind.String, 2),
+        new("Body", DataKind.String, 3),
+        new("FileNames", DataKind.String, 4),
+        new("FolderNames", DataKind.String, 5)
     ];
 
     TextLoader.Options textLoaderOptions = new()
@@ -108,7 +115,7 @@ static async Task CreateModel(string dataPath, string modelPath, ModelType type,
 
     action.Summary.AddPersistent(summary =>
     {
-        summary.AddMarkdownHeading($"Finished Training {(type == ModelType.Issue ? "Issues" : "Pull Requests")} Model", 2);
+        summary.AddMarkdownHeading($"Finished Training {(type == ModelType.Issue ? "Issues" : "Pull Requests")} {labelType} Model", 2);
 
         summary.AddRawMarkdown($"""
             * MacroAccuracy: {metrics.MacroAccuracy:0.####} (a value between 0 and 1; the closer to 1, the better)
