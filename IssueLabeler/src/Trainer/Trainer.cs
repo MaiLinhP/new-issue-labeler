@@ -20,25 +20,38 @@ var action = provider.GetRequiredService<ICoreService>();
 var config = Args.Parse(args, action);
 if (config is not Args argsData) return 1;
 
-List<Task> tasks = new();
+var success = true;
 
 if (argsData.IssuesDataPath is not null && 
     argsData.CategoryIssuesModelPath is not null && 
     argsData.ServiceIssuesModelPath is not null)
 {
-    tasks.Add(Task.Run(() => CreateModel(argsData.IssuesDataPath, argsData.CategoryIssuesModelPath, ModelType.Issue, LabelType.Category, action)));
-    tasks.Add(Task.Run(() => CreateModel(argsData.IssuesDataPath, argsData.ServiceIssuesModelPath, ModelType.Issue, LabelType.Service, action)));
+    try
+    {
+        await CreateModel(argsData.IssuesDataPath, argsData.CategoryIssuesModelPath, ModelType.Issue, LabelType.Category, action);
+        await CreateModel(argsData.IssuesDataPath, argsData.ServiceIssuesModelPath, ModelType.Issue, LabelType.Service, action);
+    }
+    catch
+    {
+        success = false;
+    }
 }
 
 if (argsData.PullsDataPath is not null && 
     argsData.CategoryPullsModelPath is not null && 
     argsData.ServicePullsModelPath is not null)
 {
-    tasks.Add(Task.Run(() => CreateModel(argsData.PullsDataPath, argsData.CategoryPullsModelPath, ModelType.PullRequest, LabelType.Category, action)));
-    tasks.Add(Task.Run(() => CreateModel(argsData.PullsDataPath, argsData.ServicePullsModelPath, ModelType.PullRequest, LabelType.Service, action)));
+    try
+    {
+        await CreateModel(argsData.PullsDataPath, argsData.CategoryPullsModelPath, ModelType.PullRequest, LabelType.Category, action);
+        await CreateModel(argsData.PullsDataPath, argsData.ServicePullsModelPath, ModelType.PullRequest, LabelType.Service, action);
+    }
+    catch
+    {
+        success = false;
+    }
 }
 
-var success = await App.RunTasks(tasks, action);
 return success ? 0 : 1;
 
 static async Task CreateModel(string dataPath, string modelPath, ModelType type, LabelType labelType, ICoreService action)
@@ -64,7 +77,8 @@ static async Task CreateModel(string dataPath, string modelPath, ModelType type,
 
     await action.WriteStatusAsync($"Loading data into train/test sets for {labelType} labels...");
     MLContext mlContext = new();
-    TextLoader.Column labelColumn = labelType == LabelType.Category ? new("Label", DataKind.String, 0) : new("Label", DataKind.String, 1);
+    string columnName = labelType == LabelType.Category ? "CategoryLabel" : "ServiceLabel";
+    TextLoader.Column labelColumn = labelType == LabelType.Category ? new(columnName, DataKind.String, 0) : new(columnName, DataKind.String, 1);
     TextLoader.Column[] columns = type == ModelType.Issue ? [
         labelColumn,
         new("Title", DataKind.String, 2),
@@ -97,7 +111,7 @@ static async Task CreateModel(string dataPath, string modelPath, ModelType type,
     await action.WriteStatusAsync("Building pipeline...");
 
     var xf = mlContext.Transforms;
-    var pipeline = xf.Conversion.MapValueToKey(inputColumnName: "Label", outputColumnName: "LabelKey")
+    var pipeline = xf.Conversion.MapValueToKey(inputColumnName: columnName, outputColumnName: "LabelKey")
         .Append(xf.Text.FeaturizeText(
             "Features",
             new TextFeaturizingEstimator.Options(),
@@ -134,14 +148,10 @@ static async Task CreateModel(string dataPath, string modelPath, ModelType type,
     action.WriteInfo($"MicroAccuracy = {metrics.MicroAccuracy:0.####}, a value between 0 and 1, the closer to 1, the better");
     action.WriteInfo($"LogLoss = {metrics.LogLoss:0.####}, the closer to 0, the better");
 
-    if (metrics.PerClassLogLoss.Count() > 0)
-        action.WriteInfo($"LogLoss for class 1 = {metrics.PerClassLogLoss[0]:0.####}, the closer to 0, the better");
-
-    if (metrics.PerClassLogLoss.Count() > 1)
-        action.WriteInfo($"LogLoss for class 2 = {metrics.PerClassLogLoss[1]:0.####}, the closer to 0, the better");
-
-    if (metrics.PerClassLogLoss.Count() > 2)
-        action.WriteInfo($"LogLoss for class 3 = {metrics.PerClassLogLoss[2]:0.####}, the closer to 0, the better");
+    for (int i = 0; i < metrics.PerClassLogLoss.Count(); i++)
+    {
+        action.WriteInfo($"LogLoss for class {i} = {metrics.PerClassLogLoss[i]:0.####}, the closer to 0, the better");
+    }
 
     action.WriteInfo($"************************************************************");
 

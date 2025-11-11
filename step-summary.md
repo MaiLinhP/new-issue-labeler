@@ -1,0 +1,4 @@
+- **Azure/azure-sdk-for-python#43687**
+    - Category prediction: `Client` (Score: 0.9166905)
+    - No service label prediction met the threshold of 0.4.
+    - **No labels applied**: Both category and service models must have successful predictions.

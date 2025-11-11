@@ -2,6 +2,7 @@
 // The .NET Foundation licenses this file to you under the MIT license.
 
 using Microsoft.ML.Data;
+using Octokit;
 
 public class Issue
 {
@@ -25,6 +26,7 @@ public class Issue
     {
         Title = issue.Title;
         Body = issue.Body;
+        Labels = issue.LabelNames;
         CategoryLabels = issue.CategoryLabelNames;
         ServiceLabels = issue.ServiceLabelNames;
         HasMoreLabels = issue.Labels.HasNextPage;
@@ -49,5 +51,6 @@ public class LabelPrediction
 {
     public string? PredictedCategoryLabel { get; set; }
     public string? PredictedServiceLabel { get; set; }
+    public string? PredictedLabel { get; set; }
     public float[]? Score { get; set; }
 }
