@@ -11,6 +11,12 @@ inputs:
   model_cache_key:
     description: "The cache key suffix to use for the trained models. Defaults to 'staged'."
     default: staged
+  synthetic_issues_category_data:
+    description: "Comma-separated list of synthetic issues category data file paths (optional)."
+    required: false
+  synthetic_issues_service_data:
+    description: "Comma-separated list of synthetic issues service data file paths (optional)."
+    required: false
 
 branding:
   color: "purple"
@@ -38,6 +44,8 @@ runs:
         echo "CATEGORY_MODEL_CACHE_KEY=${{ format('issue-labeler/model/category-{0}/{1}', inputs.type, inputs.model_cache_key) }}" >> $GITHUB_ENV
         echo "SERVICE_MODEL_PATH=labeler-cache/service-${{ inputs.type }}-model.zip" >> $GITHUB_ENV
         echo "SERVICE_MODEL_CACHE_KEY=${{ format('issue-labeler/model/service-{0}/{1}', inputs.type, inputs.model_cache_key) }}" >> $GITHUB_ENV
+        echo "SYNTHETIC_ISSUES_CATEGORY_DATA=${{ inputs.synthetic_issues_category_data }}" >> $GITHUB_ENV
+        echo "SYNTHETIC_ISSUES_SERVICE_DATA=${{ inputs.synthetic_issues_service_data }}" >> $GITHUB_ENV
 
     - name: "Check for existing models"
       id: check-cache
@@ -87,10 +95,22 @@ runs:
     - name: "Run Trainer"
       shell: bash
       run: |
-        dotnet run -c Release --project IssueLabeler/src/Trainer -- \
-          ${{ format('--{0}-data "{1}"', inputs.type, env.DATA_PATH) }} \
-          ${{ format('--category-{0}-model "{1}"', inputs.type, env.CATEGORY_MODEL_PATH) }} \
-          ${{ format('--service-{0}-model "{1}"', inputs.type, env.SERVICE_MODEL_PATH) }}
+        TRAINER_ARGS=""
+        TRAINER_ARGS+="${{ format('--{0}-data "{1}"', inputs.type, env.DATA_PATH) }} "
+        TRAINER_ARGS+="${{ format('--category-{0}-model "{1}"', inputs.type, env.CATEGORY_MODEL_PATH) }} "
+        TRAINER_ARGS+="${{ format('--service-{0}-model "{1}"', inputs.type, env.SERVICE_MODEL_PATH) }}"
+        
+        # Add synthetic data arguments if provided and training issues models
+        if [[ "${{ inputs.type }}" == "issues" ]]; then
+          if [[ -n "${{ env.SYNTHETIC_ISSUES_CATEGORY_DATA }}" ]]; then
+            TRAINER_ARGS+=" --synthetic-issues-category-data \"${{ env.SYNTHETIC_ISSUES_CATEGORY_DATA }}\""
+          fi
+          if [[ -n "${{ env.SYNTHETIC_ISSUES_SERVICE_DATA }}" ]]; then
+            TRAINER_ARGS+=" --synthetic-issues-service-data \"${{ env.SYNTHETIC_ISSUES_SERVICE_DATA }}\""
+          fi
+        fi
+        
+        dotnet run -c Release --project IssueLabeler/src/Trainer -- $TRAINER_ARGS
 
     - name: "Save Category Model to Cache"
       uses: actions/cache/save@5a3ec84eff668545956fd18022155c47e93e2684 # v4.2.3

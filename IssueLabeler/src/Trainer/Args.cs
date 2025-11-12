@@ -8,6 +8,8 @@ public struct Args
     public string? IssuesDataPath { get; set; }
     public string? CategoryIssuesModelPath { get; set; }
     public string? ServiceIssuesModelPath { get; set; }
+    public string[]? SyntheticIssuesCategoryDataPaths { get; set; }
+    public string[]? SyntheticIssuesServiceDataPaths { get; set; }
     public string? PullsDataPath { get; set; }
     public string? CategoryPullsModelPath { get; set; }
     public string? ServicePullsModelPath { get; set; }
@@ -24,6 +26,10 @@ public struct Args
               --issues-data                    Path to existing issue data file (TSV file).
               --category-issues-model          Path to category issue prediction model file (ZIP file).
               --service-issues-model           Path to service issue prediction model file (ZIP file).
+
+            Optional for training the issues models:
+              --synthetic-issues-category-data Comma-separated list of synthetic issues category data file paths.
+              --synthetic-issues-service-data  Comma-separated list of synthetic issues service data file paths.
 
             Required for training the pull requests models:
               --pulls-data                     Path to existing pull request data file (TSV file).
@@ -68,6 +74,22 @@ public struct Args
                         return null;
                     }
                     argsData.ServiceIssuesModelPath = ServiceIssuesModelPath;
+                    break;
+
+                case "--synthetic-issues-category-data":
+                    if (!argUtils.TryGetStringArray("--synthetic-issues-category-data", out string[]? syntheticCategoryPaths))
+                    {
+                        return null;
+                    }
+                    argsData.SyntheticIssuesCategoryDataPaths = syntheticCategoryPaths;
+                    break;
+
+                case "--synthetic-issues-service-data":
+                    if (!argUtils.TryGetStringArray("--synthetic-issues-service-data", out string[]? syntheticServicePaths))
+                    {
+                        return null;
+                    }
+                    argsData.SyntheticIssuesServiceDataPaths = syntheticServicePaths;
                     break;
 
                 case "--pulls-data":

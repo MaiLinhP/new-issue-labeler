@@ -28,11 +28,13 @@ if (argsData.IssuesDataPath is not null &&
 {
     try
     {
-        await CreateModel(argsData.IssuesDataPath, argsData.CategoryIssuesModelPath, ModelType.Issue, LabelType.Category, action);
-        await CreateModel(argsData.IssuesDataPath, argsData.ServiceIssuesModelPath, ModelType.Issue, LabelType.Service, action);
+        await CreateModel(argsData.IssuesDataPath, argsData.CategoryIssuesModelPath, ModelType.Issue, LabelType.Category, action, argsData.SyntheticIssuesCategoryDataPaths);
+        await CreateModel(argsData.IssuesDataPath, argsData.ServiceIssuesModelPath, ModelType.Issue, LabelType.Service, action, argsData.SyntheticIssuesServiceDataPaths);
     }
-    catch
+    catch (Exception ex)
     {
+        action.WriteError($"Error training issues models: {ex.Message}");
+        action.WriteError($"Stack trace: {ex.StackTrace}");
         success = false;
     }
 }
@@ -43,18 +45,20 @@ if (argsData.PullsDataPath is not null &&
 {
     try
     {
-        await CreateModel(argsData.PullsDataPath, argsData.CategoryPullsModelPath, ModelType.PullRequest, LabelType.Category, action);
-        await CreateModel(argsData.PullsDataPath, argsData.ServicePullsModelPath, ModelType.PullRequest, LabelType.Service, action);
+        await CreateModel(argsData.PullsDataPath, argsData.CategoryPullsModelPath, ModelType.PullRequest, LabelType.Category, action, argsData.SyntheticIssuesCategoryDataPaths);
+        await CreateModel(argsData.PullsDataPath, argsData.ServicePullsModelPath, ModelType.PullRequest, LabelType.Service, action, argsData.SyntheticIssuesServiceDataPaths);
     }
-    catch
+    catch (Exception ex)
     {
+        action.WriteError($"Error training pull request models: {ex.Message}");
+        action.WriteError($"Stack trace: {ex.StackTrace}");
         success = false;
     }
 }
 
 return success ? 0 : 1;
 
-static async Task CreateModel(string dataPath, string modelPath, ModelType type, LabelType labelType, ICoreService action)
+static async Task CreateModel(string dataPath, string modelPath, ModelType type, LabelType labelType, ICoreService action, string[]? syntheticIssuesDataPaths = null)
 {
     if (!File.Exists(dataPath))
     {
@@ -105,8 +109,9 @@ static async Task CreateModel(string dataPath, string modelPath, ModelType type,
     };
 
     var loader = mlContext.Data.CreateTextLoader(textLoaderOptions);
-    var data = loader.Load(dataPath);
-    var split = mlContext.Data.TrainTestSplit(data, testFraction: 0.2);
+    var dataPaths = syntheticIssuesDataPaths is not null ? syntheticIssuesDataPaths.Append(dataPath) : [dataPath];
+    var data = loader.Load([.. dataPaths]);
+    var split = mlContext.Data.TrainTestSplit(data, testFraction: 0.2, seed: 42);
 
     await action.WriteStatusAsync("Building pipeline...");
 
@@ -148,9 +153,25 @@ static async Task CreateModel(string dataPath, string modelPath, ModelType type,
     action.WriteInfo($"MicroAccuracy = {metrics.MicroAccuracy:0.####}, a value between 0 and 1, the closer to 1, the better");
     action.WriteInfo($"LogLoss = {metrics.LogLoss:0.####}, the closer to 0, the better");
 
-    for (int i = 0; i < metrics.PerClassLogLoss.Count(); i++)
+    // Find the original label values.
+    try
     {
-        action.WriteInfo($"LogLoss for class {i} = {metrics.PerClassLogLoss[i]:0.####}, the closer to 0, the better");
+        VBuffer<ReadOnlyMemory<char>> labelNames = default;
+        trainedModel.GetOutputSchema(split.TrainSet.Schema)["LabelKey"].GetKeyValues(ref labelNames);
+        var originalLabels = labelNames.DenseValues().Select(x => x.ToString()).ToArray();
+        
+        for (int i = 0; i < metrics.PerClassLogLoss.Count() && i < originalLabels.Length; i++)
+        {
+            action.WriteInfo($"LogLoss for '{originalLabels[i]}' = {metrics.PerClassLogLoss[i]:0.####}, the closer to 0, the better");
+        }
+    }
+    catch (Exception ex)
+    {
+        action.WriteInfo($"Could not retrieve class-specific log loss with label names: {ex.Message}");
+        for (int i = 0; i < metrics.PerClassLogLoss.Count(); i++)
+        {
+            action.WriteInfo($"LogLoss for class {i} = {metrics.PerClassLogLoss[i]:0.####}, the closer to 0, the better");
+        }
     }
 
     action.WriteInfo($"************************************************************");

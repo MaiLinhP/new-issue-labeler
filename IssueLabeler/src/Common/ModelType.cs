@@ -6,9 +6,3 @@ public enum ModelType
     Issue = 1,
     PullRequest = 2
 }
-
-public enum LabelType
-{
-    Category = 1,
-    Service = 2
-}
