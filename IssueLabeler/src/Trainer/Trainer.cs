@@ -111,7 +111,7 @@ static async Task CreateModel(string dataPath, string modelPath, ModelType type,
     var loader = mlContext.Data.CreateTextLoader(textLoaderOptions);
     var dataPaths = syntheticIssuesDataPaths is not null ? syntheticIssuesDataPaths.Append(dataPath) : [dataPath];
     var data = loader.Load([.. dataPaths]);
-    var split = mlContext.Data.TrainTestSplit(data, testFraction: 0.2, seed: 42);
+    var split = mlContext.Data.TrainTestSplit(data, testFraction: 0.2);
 
     await action.WriteStatusAsync("Building pipeline...");
 
@@ -159,18 +159,25 @@ static async Task CreateModel(string dataPath, string modelPath, ModelType type,
         VBuffer<ReadOnlyMemory<char>> labelNames = default;
         trainedModel.GetOutputSchema(split.TrainSet.Schema)["LabelKey"].GetKeyValues(ref labelNames);
         var originalLabels = labelNames.DenseValues().Select(x => x.ToString()).ToArray();
-        
+        List<string> labelsWithHighLogLoss = [];
+
         for (int i = 0; i < metrics.PerClassLogLoss.Count() && i < originalLabels.Length; i++)
         {
-            action.WriteInfo($"LogLoss for '{originalLabels[i]}' = {metrics.PerClassLogLoss[i]:0.####}, the closer to 0, the better");
+            action.WriteInfo($"LogLoss for '{originalLabels[i]}' = {metrics.PerClassLogLoss[i]:0.####}");
+            if (metrics.PerClassLogLoss[i] > 2)
+            {
+                labelsWithHighLogLoss.Add(originalLabels[i]);
+            }
         }
+        action.WriteInfo($"Number of classes: {metrics.PerClassLogLoss.Count()}");
+        action.WriteInfo($"Classes with Logloss > 2: {string.Join(", ", labelsWithHighLogLoss)}");
     }
     catch (Exception ex)
     {
         action.WriteInfo($"Could not retrieve class-specific log loss with label names: {ex.Message}");
         for (int i = 0; i < metrics.PerClassLogLoss.Count(); i++)
         {
-            action.WriteInfo($"LogLoss for class {i} = {metrics.PerClassLogLoss[i]:0.####}, the closer to 0, the better");
+            action.WriteInfo($"LogLoss for class {i} = {metrics.PerClassLogLoss[i]:0.####}");
         }
     }
 

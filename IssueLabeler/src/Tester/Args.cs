@@ -10,9 +10,11 @@ public struct Args
     public List<string> Repos { get; set; }
     public float Threshold { get; set; }
     public string[]? ExcludedAuthors { get; set; }
-    public string? IssuesModelPath { get; set; }
+    public string? CategoryIssuesModelPath { get; set; }
+    public string? ServiceIssuesModelPath { get; set; }
     public int? IssuesLimit { get; set; }
-    public string? PullsModelPath { get; set; }
+    public string? CategoryPullsModelPath { get; set; }
+    public string? ServicePullsModelPath { get; set; }
     public int? PullsLimit { get; set; }
     public int? PageSize { get; set; }
     public int? PageLimit { get; set; }
@@ -30,11 +32,13 @@ public struct Args
             Required arguments:
               --repo                  The GitHub repositories in format org/repo (comma separated for multiple).
 
-            Required for testing the issues model:
-              --issues-model          Path to existing issue prediction model file (ZIP file).
+            Required for testing the issues models:
+              --category-issues-model Path to existing category issues prediction model file (ZIP file).
+              --service-issues-model  Path to existing service issues prediction model file (ZIP file).
 
-            Required for testing the pull requests model:
-              --pulls-model           Path to existing pull request prediction model file (ZIP file).
+            Required for testing the pull requests models:
+              --category-pulls-model  Path to existing category pulls prediction model file (ZIP file).
+              --service-pulls-model   Path to existing service pulls prediction model file (ZIP file).
 
             Optional arguments:
               --excluded-authors      Comma-separated list of authors to exclude.
@@ -102,12 +106,22 @@ public struct Args
                     argsData.Threshold = threshold.Value;
                     break;
 
-                case "--issues-model":
-                    if (!argUtils.TryGetPath("--issues-model", out string? IssuesModelPath))
+
+
+                case "--category-issues-model":
+                    if (!argUtils.TryGetPath("--category-issues-model", out string? categoryIssuesModelPath))
                     {
                         return null;
                     }
-                    argsData.IssuesModelPath = IssuesModelPath;
+                    argsData.CategoryIssuesModelPath = categoryIssuesModelPath;
+                    break;
+
+                case "--service-issues-model":
+                    if (!argUtils.TryGetPath("--service-issues-model", out string? serviceIssuesModelPath))
+                    {
+                        return null;
+                    }
+                    argsData.ServiceIssuesModelPath = serviceIssuesModelPath;
                     break;
 
                 case "--issues-limit":
@@ -118,12 +132,20 @@ public struct Args
                     argsData.IssuesLimit = IssuesLimit;
                     break;
 
-                case "--pulls-model":
-                    if (!argUtils.TryGetPath("--pulls-model", out string? PullsModelPath))
+                case "--category-pulls-model":
+                    if (!argUtils.TryGetPath("--category-pulls-model", out string? categoryPullsModelPath))
                     {
                         return null;
                     }
-                    argsData.PullsModelPath = PullsModelPath;
+                    argsData.CategoryPullsModelPath = categoryPullsModelPath;
+                    break;
+
+                case "--service-pulls-model":
+                    if (!argUtils.TryGetPath("--service-pulls-model", out string? servicePullsModelPath))
+                    {
+                        return null;
+                    }
+                    argsData.ServicePullsModelPath = servicePullsModelPath;
                     break;
 
                 case "--pulls-limit":
@@ -169,7 +191,8 @@ public struct Args
         }
 
         if (argsData.Org is null || argsData.Repos.Count == 0 ||
-            (argsData.IssuesModelPath is null && argsData.PullsModelPath is null))
+            ((argsData.CategoryIssuesModelPath is null || argsData.ServiceIssuesModelPath is null) &&
+             (argsData.CategoryPullsModelPath is null || argsData.ServicePullsModelPath is null)))
         {
             ShowUsage(null, action);
             return null;

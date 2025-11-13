@@ -5,14 +5,10 @@ public class Issue
 {
     public string Repo { get; set; }
     public ulong Number { get; set; }
-    public string? Label { get; set; }
+    public string? CategoryLabel { get; set; }
+    public string? ServiceLabel { get; set; }
     public string? Title { get; set; }
     public string? Body { get; set; }
-
-    // The Area and Description properties allow loading
-    // models from the issue-labeler implementation
-    public string? Area { get => Label; }
-    public string? Description { get => Body; }
 
     public Issue(string repo, GitHubClient.Issue issue)
     {
@@ -20,9 +16,12 @@ public class Issue
         Number = issue.Number;
         Title = issue.Title;
         Body = issue.Body;
-        Label = issue.Labels.HasNextPage ?
-            (string?) null :
-            issue.LabelNames?.FirstOrDefault();
+    }
+
+    public Issue(string repo, GitHubClient.Issue issue, string? categoryLabel, string? serviceLabel) : this(repo, issue)
+    {
+        CategoryLabel = categoryLabel;
+        ServiceLabel = serviceLabel;
     }
 }
 
@@ -32,6 +31,12 @@ public class PullRequest : Issue
     public string? FolderNames { get; set; }
 
     public PullRequest(string repo, GitHubClient.PullRequest pull) : base(repo, pull)
+    {
+        FileNames = string.Join(' ', pull.FileNames);
+        FolderNames = string.Join(' ', pull.FolderNames);
+    }
+
+    public PullRequest(string repo, GitHubClient.PullRequest pull, string? categoryLabel, string? serviceLabel) : base(repo, pull, categoryLabel, serviceLabel)
     {
         FileNames = string.Join(' ', pull.FileNames);
         FolderNames = string.Join(' ', pull.FolderNames);

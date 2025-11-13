@@ -20,12 +20,12 @@ if (config is not Args argsData) return 1;
 
 List<Task<(Type ItemType, TestStats Stats)>> tasks = [];
 
-if (argsData.IssuesModelPath is not null)
+if (argsData.CategoryIssuesModelPath is not null && argsData.ServiceIssuesModelPath is not null)
 {
     tasks.Add(Task.Run(() => TestIssues()));
 }
 
-if (argsData.PullsModelPath is not null)
+if (argsData.CategoryPullsModelPath is not null && argsData.ServicePullsModelPath is not null)
 {
     tasks.Add(Task.Run(() => TestPullRequests()));
 }
@@ -88,14 +88,15 @@ return success ? 0 : 1;
 
 async Task<(Type, TestStats)> TestIssues()
 {
-    var predictor = GetPredictionEngine<Issue>(argsData.IssuesModelPath);
+    var categoryPredictor = GetPredictionEngine<Issue>(argsData.CategoryIssuesModelPath);
+    var servicePredictor = GetPredictionEngine<Issue>(argsData.ServiceIssuesModelPath);
     var stats = new TestStats();
 
     async IAsyncEnumerable<Issue> DownloadIssues(string githubToken, string repo)
     {
         await foreach (var result in GitHubApi.DownloadIssues(githubToken, argsData.Org, repo, argsData.IssuesLimit, argsData.PageSize, argsData.PageLimit, argsData.Retries, argsData.ExcludedAuthors, action, argsData.Verbose))
         {
-            yield return new(repo, result.Issue);
+            yield return new(repo, result.Issue, result.CategoryLabel, result.ServiceLabel);
         }
     }
 
@@ -107,7 +108,7 @@ async Task<(Type, TestStats)> TestIssues()
 
         await foreach (var issue in DownloadIssues(argsData.GitHubToken, repo))
         {
-            TestPrediction(issue, predictor, stats);
+            TestCombinedPrediction(issue, categoryPredictor, servicePredictor, stats);
         }
 
         await action.WriteStatusAsync($"Finished Testing Issues from {argsData.Org}/{repo}.");
@@ -118,14 +119,15 @@ async Task<(Type, TestStats)> TestIssues()
 
 async Task<(Type, TestStats)> TestPullRequests()
 {
-    var predictor = GetPredictionEngine<PullRequest>(argsData.PullsModelPath);
+    var categoryPredictor = GetPredictionEngine<PullRequest>(argsData.CategoryPullsModelPath);
+    var servicePredictor = GetPredictionEngine<PullRequest>(argsData.ServicePullsModelPath);
     var stats = new TestStats();
 
     async IAsyncEnumerable<PullRequest> DownloadPullRequests(string githubToken, string repo)
     {
         await foreach (var result in GitHubApi.DownloadPullRequests(githubToken, argsData.Org, repo, argsData.PullsLimit, argsData.PageSize, argsData.PageLimit, argsData.Retries, argsData.ExcludedAuthors, action, argsData.Verbose))
         {
-            yield return new(repo, result.PullRequest);
+            yield return new(repo, result.PullRequest, result.CategoryLabel, result.ServiceLabel);
         }
     }
 
@@ -135,7 +137,7 @@ async Task<(Type, TestStats)> TestPullRequests()
 
         await foreach (var pull in DownloadPullRequests(argsData.GitHubToken, repo))
         {
-            TestPrediction(pull, predictor, stats);
+            TestCombinedPrediction(pull, categoryPredictor, servicePredictor, stats);
         }
 
         await action.WriteStatusAsync($"Finished Testing Pull Requests from {argsData.Org}/{repo}.");
@@ -167,46 +169,57 @@ PredictionEngine<T, LabelPrediction> GetPredictionEngine<T>(string modelPath) wh
     return context.Model.CreatePredictionEngine<T, LabelPrediction>(model);
 }
 
-void TestPrediction<T>(T result, PredictionEngine<T, LabelPrediction> predictor, TestStats stats) where T : Issue
+void TestCombinedPrediction<T>(T result, PredictionEngine<T, LabelPrediction> categoryPredictor, PredictionEngine<T, LabelPrediction> servicePredictor, TestStats stats) where T : Issue
 {
     var itemType = typeof(T) == typeof(PullRequest) ? "Pull Request" : "Issue";
 
-    (string? predictedLabel, float? score) = GetPrediction(
-        predictor,
+    (string? predictedCategoryLabel, float? categoryScore) = GetPrediction(
+        categoryPredictor,
         result,
         argsData.Threshold);
 
-    if (predictedLabel is null && result.Label is not null)
+    (string? predictedServiceLabel, float? serviceScore) = GetPrediction(
+        servicePredictor,
+        result,
+        argsData.Threshold);
+
+    // Combined prediction logic: both models must succeed to apply labels (same as Predictor)
+    bool bothPredictionsSuccessful = predictedCategoryLabel is not null && predictedServiceLabel is not null;
+
+    // Compare against actual labels
+    bool categoryMatches = predictedCategoryLabel?.ToLower() == result.CategoryLabel?.ToLower();
+    bool serviceMatches = predictedServiceLabel?.ToLower() == result.ServiceLabel?.ToLower();
+    bool bothLabelsExist = result.CategoryLabel is not null && result.ServiceLabel is not null;
+
+    // Update stats based on combined prediction success and label matching
+    if (bothPredictionsSuccessful && bothLabelsExist)
+    {
+        if (categoryMatches && serviceMatches)
+        {
+            stats.Matches++;
+            if (categoryScore.HasValue) stats.CategoryMatchScores.Add(categoryScore.Value);
+            if (serviceScore.HasValue) stats.ServiceMatchScores.Add(serviceScore.Value);
+        }
+        else
+        {
+            stats.Mismatches++;
+            if (categoryScore.HasValue) stats.CategoryMismatchScores.Add(categoryScore.Value);
+            if (serviceScore.HasValue) stats.ServiceMismatchScores.Add(serviceScore.Value);
+        }
+    }
+    else if (!bothPredictionsSuccessful && bothLabelsExist)
     {
         stats.NoPrediction++;
     }
-    else if (predictedLabel is not null && result.Label is null)
+    else if (bothPredictionsSuccessful && !bothLabelsExist)
     {
         stats.NoExisting++;
     }
-    else if (predictedLabel?.ToLower() == result.Label?.ToLower())
-    {
-        stats.Matches++;
 
-        if (score.HasValue)
-        {
-            stats.MatchScores.Add(score.Value);
-        }
-    }
-    else
-    {
-        stats.Mismatches++;
-
-        if (score.HasValue)
-        {
-            stats.MismatchScores.Add(score.Value);
-        }
-    }
-
-    action.StartGroup($"{itemType} {argsData.Org}/{result.Repo}#{result.Number} - Predicted: {(predictedLabel ?? "<NONE>")} - Existing: {(result.Label ?? "<NONE>")}");
+    action.StartGroup($"{itemType} {argsData.Org}/{result.Repo}#{result.Number} - Category: {predictedCategoryLabel ?? "<NONE>"}/{result.CategoryLabel ?? "<NONE>"} - Service: {predictedServiceLabel ?? "<NONE>"}/{result.ServiceLabel ?? "<NONE>"}");
     action.WriteInfo($"Total        : {stats.Total}");
-    action.WriteInfo($"Matches      : {stats.Matches} ({stats.MatchesPercentage:P2}) - Min | Avg | Max | StdDev: {GetStats(stats.MatchScores)}");
-    action.WriteInfo($"Mismatches   : {stats.Mismatches} ({stats.MismatchesPercentage:P2}) - Min | Avg | Max | StdDev: {GetStats(stats.MismatchScores)}");
+    action.WriteInfo($"Matches      : {stats.Matches} ({stats.MatchesPercentage:P2}) - Category Min|Avg|Max|StdDev: {GetStats(stats.CategoryMatchScores)} - Service Min|Avg|Max|StdDev: {GetStats(stats.ServiceMatchScores)}");
+    action.WriteInfo($"Mismatches   : {stats.Mismatches} ({stats.MismatchesPercentage:P2}) - Category Min|Avg|Max|StdDev: {GetStats(stats.CategoryMismatchScores)} - Service Min|Avg|Max|StdDev: {GetStats(stats.ServiceMismatchScores)}");
     action.WriteInfo($"No Prediction: {stats.NoPrediction} ({stats.NoPredictionPercentage:P2})");
     action.WriteInfo($"No Existing  : {stats.NoExisting} ({stats.NoExistingPercentage:P2})");
     action.EndGroup();
@@ -254,6 +267,10 @@ class TestStats
     public float NoPredictionPercentage => (float)NoPrediction / Total;
     public float NoExistingPercentage => (float)NoExisting / Total;
 
-    public List<float> MatchScores => [];
-    public List<float> MismatchScores => [];
+    
+    // Separate tracking for category and service models
+    public List<float> CategoryMatchScores => [];
+    public List<float> CategoryMismatchScores => [];
+    public List<float> ServiceMatchScores => [];
+    public List<float> ServiceMismatchScores => [];
 }
